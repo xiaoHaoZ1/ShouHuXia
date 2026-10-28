@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 到期确认全屏页用：浅色奶油底，不依赖主应用资源 -->
+    <style name="Theme.JiaRenXia.Guardian" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/guardian_window_bg</item>
+    </style>
+</resources>

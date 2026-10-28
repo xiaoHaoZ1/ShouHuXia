@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">家人侠·守护</string>
+    <string name="channel_status">守护状态</string>
+    <string name="channel_confirm">守护确认提醒</string>
+    <string name="channel_result">守护通知结果</string>
+
+    <!-- 通知 -->
+    <string name="confirm_notif_title">需要确认：你还在吗？</string>
+    <string name="confirm_notif_text">很久没有检测到使用手机，无操作将自动拨打紧急电话</string>
+    <string name="alerted_msg">已于 %1$s 完成报警</string>
+    <string name="btn_im_ok">我没事</string>
+    <string name="btn_alert_now">马上拨打</string>
+    <string name="drill_notif_title">这是守护测试</string>
+    <string name="drill_notif_text">请不要操作，到点后会自动拨打紧急联系人做验证</string>
+    <string name="drill_btn_stop">停止测试</string>
+
+    <!-- 首页 -->
+    <string name="status_disabled">未开启守护</string>
+    <string name="status_monitoring">守护中</string>
+    <string name="status_confirming">响铃确认中</string>
+    <string name="status_alerted">已通知家人</string>
+    <string name="test_mode_banner">测试模式：阈值30秒、响铃15秒，验证完成后请到设置里关闭</string>
+    <string name="last_activity">上次活动</string>
+    <string name="last_activity_none">暂无记录</string>
+    <string name="countdown_deadline">距响铃检查</string>
+    <string name="countdown_confirm">无人响应将拨号，剩余</string>
+    <string name="next_sms_at">下次平安短信</string>
+    <string name="btn_start_guard">开启守护</string>
+    <string name="btn_stop_guard">停止守护</string>
+    <string name="test_tools">测试工具</string>
+    <string name="test_force_deadline">立即响铃测试</string>
+    <string name="test_send_sms">立即发送平安短信</string>
+    <string name="test_call">测试拨打紧急电话</string>
+    <string name="nav_setup">权限清单</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_log">日志</string>
+
+    <!-- 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_number">紧急联系号码</string>
+    <string name="settings_threshold">无活动阈值（小时）</string>
+    <string name="settings_confirm">确认响铃时长（分钟）</string>
+    <string name="settings_daily_sms">每日平安短信</string>
+    <string name="settings_daily_time">发送时间（HH:mm）</string>
+    <string name="settings_test_mode">测试模式</string>
+    <string name="settings_test_mode_desc">阈值30秒、响铃15秒，验证完成后请关闭</string>
+    <string name="settings_invalid">输入有误，请检查号码/小时/分钟/时间格式</string>
+    <string name="btn_save">保存</string>
+    <string name="saved_ok">已保存</string>
+    <string name="btn_back">返回</string>
+
+    <!-- 权限清单 -->
+    <string name="setup_title">权限清单</string>
+    <string name="optional_label">可选</string>
+    <string name="go_open">去开启</string>
+    <string name="perm_call_phone">拨打电话</string>
+    <string name="perm_call_phone_desc">到期无人确认时自动拨打紧急号码</string>
+    <string name="perm_phone_state">读取通话状态</string>
+    <string name="perm_phone_state_desc">接听/拨打电话算作使用活动</string>
+    <string name="perm_send_sms">发送短信</string>
+    <string name="perm_send_sms_desc">出事时先给所有紧急联系人发紧急短信说明情况；每日平安短信也靠它</string>
+    <string name="perm_call_log">读取通话记录</string>
+    <string name="perm_call_log_desc">报警/测试拨号结束后，只查看守护侠自己拨出的那几通是否接通，用来决定是否继续拨打下一位；不读取其他通话记录</string>
+    <string name="perm_notifications">通知</string>
+    <string name="perm_notifications_desc">守护状态与到期提醒通知</string>
+    <string name="perm_battery">忽略电池优化</string>
+    <string name="perm_battery_desc">防止系统冻结守护进程</string>
+    <string name="perm_usage_stats">使用情况访问</string>
+    <string name="perm_usage_stats_desc">服务被杀时找回漏掉的解锁记录</string>
+    <string name="perm_exact_alarm">精确闹钟</string>
+    <string name="perm_exact_alarm_desc">保证到期准时响铃</string>
+    <string name="perm_fullscreen">全屏通知</string>
+    <string name="perm_fullscreen_desc">锁屏上弹出“我没事”确认页</string>
+    <string name="perm_miui_bg_popup">后台弹出界面</string>
+    <string name="perm_miui_bg_popup_desc">小米/澎湃专属：未开时确认页只在通知栏出现</string>
+    <string name="perm_unused_restrictions">未使用应用限制豁免</string>
+    <string name="perm_unused_restrictions_desc">防止系统因长期未打开而休眠本应用、收回权限</string>
+
+    <!-- 需手动确认的必需项 -->
+    <string name="manual_autostart">自启动：允许</string>
+    <string name="manual_autostart_desc">允许守护侠被闹钟和开机广播拉起，否则后台被杀后无法到点响铃</string>
+    <string name="manual_battery">省电策略：无限制</string>
+    <string name="manual_battery_desc">把守护侠的省电策略设为“无限制”，否则锁屏后进程可能被冻结</string>
+    <string name="manual_recents_lock">最近任务中加锁</string>
+    <string name="manual_recents_lock_desc">在最近任务页把守护侠卡片加锁（多为下拉卡片或长按），防止清理内存时被划掉</string>
+    <string name="manual_dial_always">拨打电话：始终允许</string>
+    <string name="manual_dial_always_desc">小米请在应用信息→其他权限→拨打电话设为“始终允许”并勾选“记住选择”，否则每次拨号都会弹确认框</string>
+    <string name="manual_lockscreen_notify">锁屏通知：允许</string>
+    <string name="manual_lockscreen_notify_desc">允许守护侠的通知显示在锁屏上，确认页才能及时弹出</string>
+    <string name="oem_title">手机系统设置（小米/vivo 等需手动完成）</string>
+    <string name="oem_hint">小米/红米还需：自启动管理允许本应用；省电策略选“无限制”；最近任务里下拉本应用卡片加锁；应用信息→其他权限→后台弹出界面→允许。</string>
+    <string name="oem_autostart">自启动管理</string>
+    <string name="oem_battery">省电策略 / 电池优化</string>
+    <string name="oem_app_details">应用信息页（后台弹出界面等）</string>
+
+    <!-- 日志 -->
+    <string name="log_title">事件日志</string>
+    <string name="btn_refresh">刷新</string>
+    <string name="log_empty">暂无日志</string>
+
+    <!-- 响铃确认页 -->
+    <string name="prealarm_title">很久没检测到使用手机</string>
+    <string name="prealarm_will_call">将在 %1$d 秒后拨打 %2$s</string>
+</resources>

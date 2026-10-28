@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 窗口底色（浅色奶油底，与主题背景一致） -->
+    <color name="window_background">#FBF8F5</color>
+    <!-- 小侠家族统一暖黄底；前景所持的心/盾区分守护侠与家人侠。 -->
+    <color name="ic_launcher_background">#F9C147</color>
+</resources>

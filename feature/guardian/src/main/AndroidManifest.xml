@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 无电话硬件的设备（平板等）仍可安装 -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!-- 前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 开机自启 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 精确定时：API33+ 自动授予 USE_EXACT_ALARM；API31/32 走 SCHEDULE_EXACT_ALARM 运行时开关 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <!-- 拨打电话 / 通话状态（接电话也算活动） -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- 紧急/测试/平安短信 -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- 仅用于报警/演练期间判断自己拨出的电话是否接通；不读取其他通话记录（不上架 Google Play） -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG"
+        tools:ignore="ManifestPermission" />
+    <!-- 到期响铃全屏提醒 -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- 免电池优化白名单（设置里引导） -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 使用情况访问（兜底找回遗漏的解锁事件，可选） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- 拨打电话时尽量切免提 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- OEM 设置页可见性（resolveActivity 用） -->
+    <queries>
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oplus.safecenter" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.samsung.android.lool" />
+        <package android:name="com.samsung.lool" />
+    </queries>
+
+    <application>
+        <!-- 到期确认全屏页：锁屏之上显示 -->
+        <activity
+            android:name=".ui.PreAlarmActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:directBootAware="true"
+            android:theme="@style/Theme.JiaRenXia.Guardian" />
+
+        <!-- 前台守护服务：监听解锁/熄屏 -->
+        <service
+            android:name=".sys.GuardService"
+            android:exported="false"
+            android:directBootAware="true"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="watchdog_screen_lock" />
+        </service>
+
+        <!-- 定时器：到期/确认结束/每日短信/看门狗 -->
+        <receiver
+            android:name=".sys.AlarmReceiver"
+            android:exported="false"
+            android:directBootAware="true" />
+
+        <!-- 开机/升级/时间变化 -->
+        <receiver
+            android:name=".sys.BootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 通话状态：接听/拨打电话也算“使用了手机” -->
+        <receiver
+            android:name=".sys.PhoneStateReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 短信发出结果回传：sentIntent → Event.SmsSent -->
+        <receiver
+            android:name=".sys.SmsSentReceiver"
+            android:exported="false"
+            android:directBootAware="true" />
+
+        <!-- 通知栏按钮：我没事 / 马上拨打 -->
+        <receiver
+            android:name=".sys.NotificationActionReceiver"
+            android:exported="false"
+            android:directBootAware="true" />
+    </application>
+</manifest>

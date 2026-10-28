@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 应用名；同时覆盖 :feature:guardian 通知标题里引用的 app_name -->
+    <string name="app_name">守护侠</string>
+</resources>
