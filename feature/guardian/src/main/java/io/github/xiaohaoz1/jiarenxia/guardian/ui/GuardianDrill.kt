@@ -162,16 +162,30 @@ private fun DrillStartCard(ui: GuardianHomeUi, cb: GuardianHomeCallbacks) {
             modifier = Modifier.padding(top = 4.dp)
         )
         Spacer(Modifier.height(12.dp))
-        val startable = ui.drillMinReady
+        val missingPermissions = ui.drillMissingRuntimePermissions
+        val buttonLabel = when {
+            !ui.hasContact -> "先设置紧急联系人"
+            missingPermissions.isNotEmpty() -> "先开启必要权限"
+            else -> "开始测试"
+        }
         Button(
-            onClick = { cb.onStartDrill(wait) },
-            enabled = startable,
+            onClick = {
+                when {
+                    !ui.hasContact -> cb.onOpenSettings()
+                    missingPermissions.isNotEmpty() -> cb.onOpenPermissions()
+                    else -> cb.onStartDrill(wait)
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) { Text("开始测试", style = MaterialTheme.typography.titleMedium) }
-        if (!startable) {
+        ) { Text(buttonLabel, style = MaterialTheme.typography.titleMedium) }
+        if (!ui.drillMinReady) {
             Text(
-                if (!ui.hasContact) "先在第①步设置紧急联系人"
-                else "先完成拨打电话、电话状态、通知权限",
+                if (!ui.hasContact) {
+                    "测试前需要先设置至少 1 位紧急联系人"
+                } else {
+                    "测试前需要开启：" +
+                        missingPermissions.joinToString("、") { it.title }
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = LocalJrxColors.current.warning,
                 modifier = Modifier.padding(top = 6.dp)

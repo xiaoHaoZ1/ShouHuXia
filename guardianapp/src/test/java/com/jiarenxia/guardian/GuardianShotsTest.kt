@@ -121,19 +121,24 @@ class GuardianShotsTest {
     private fun demoPerms() = listOf(
         Permissions.PermissionItem(
             key = "call_phone", title = "拨打电话",
-            desc = "紧急时自动拨号", state = Permissions.CheckState.ON),
+            desc = "紧急时自动拨号", state = Permissions.CheckState.ON,
+            runtimePermission = android.Manifest.permission.CALL_PHONE),
         Permissions.PermissionItem(
-            key = "phone_state", title = "电话状态",
-            desc = "接听电话也算使用", state = Permissions.CheckState.ON),
+            key = "phone_state", title = "读取通话状态",
+            desc = "接听电话也算使用", state = Permissions.CheckState.ON,
+            runtimePermission = android.Manifest.permission.READ_PHONE_STATE),
         Permissions.PermissionItem(
             key = "send_sms", title = "发送短信",
-            desc = "紧急与平安短信", state = Permissions.CheckState.ON),
+            desc = "紧急与平安短信", state = Permissions.CheckState.ON,
+            runtimePermission = android.Manifest.permission.SEND_SMS),
         Permissions.PermissionItem(
             key = "call_log", title = "读取通话记录",
-            desc = "判断拨出的电话是否接通", state = Permissions.CheckState.ON),
+            desc = "判断拨出的电话是否接通", state = Permissions.CheckState.ON,
+            runtimePermission = android.Manifest.permission.READ_CALL_LOG),
         Permissions.PermissionItem(
             key = "notifications", title = "通知",
-            desc = "响铃提醒与状态通知", state = Permissions.CheckState.OFF),
+            desc = "响铃提醒与状态通知", state = Permissions.CheckState.OFF,
+            runtimePermission = android.Manifest.permission.POST_NOTIFICATIONS),
         Permissions.PermissionItem(
             key = "battery", title = "忽略电池优化",
             desc = "防止后台被清理", state = Permissions.CheckState.OFF),
@@ -194,10 +199,13 @@ class GuardianShotsTest {
         state: GuardState? = null,
         policy: io.github.xiaohaoz1.jiarenxia.guardian.core.AnswerPolicy =
             io.github.xiaohaoz1.jiarenxia.guardian.core.AnswerPolicy.STOP_ON_ANSWER,
+        debuggable: Boolean = false,
+        devFastThresholds: Boolean = false,
     ) = GuardianHomeUi(
         config = GuardConfig(
             enabled = enabled,
             answerPolicy = policy,
+            devFastThresholds = devFastThresholds,
             contacts = contacts
                 ?: (if (contact) listOf(cA, cB) else emptyList())),
         state = state ?: GuardState(
@@ -212,6 +220,7 @@ class GuardianShotsTest {
         perms = perms,
         manualItems = manualItems,
         manualConfirmed = manualConfirmed,
+        debuggable = debuggable,
         versionCode = 3L,
         fingerprint = "demo-fp",
         anomalies = anomalies,
@@ -317,7 +326,7 @@ class GuardianShotsTest {
     @Test
     fun drillPage() = shot("drill_page") {
         GuardianDrill(
-            homeUi(enabled = false, contact = true),
+            homeUi(enabled = false, contact = true, perms = permsAllOn()),
             GuardianHomeCallbacks(),
             onBack = {}
         )
@@ -327,6 +336,71 @@ class GuardianShotsTest {
             "1 分钟", "10 分钟", "30 分钟", "1 小时", "2 小时",
             "完整测试，计入开启条件", "开始测试"
         )
+    }
+
+    /** 零运行时权限：主按钮不能静默禁用，应明确列出缺项并可进入权限清单。 */
+    @Test
+    fun drillPageMissingPermissions() {
+        var openedPermissions = false
+        val callbacks = GuardianHomeCallbacks().apply {
+            onOpenPermissions = { openedPermissions = true }
+        }
+        shot("drill_page_missing_permissions") {
+            GuardianDrill(
+                homeUi(
+                    enabled = false,
+                    contact = true,
+                    perms = demoPerms().map {
+                        if (it.runtimePermission != null) {
+                            it.copy(state = Permissions.CheckState.OFF)
+                        } else {
+                            it
+                        }
+                    },
+                ),
+                callbacks,
+                onBack = {},
+            )
+        }
+        assertTexts(
+            "先开启必要权限",
+            "测试前需要开启：拨打电话、读取通话状态、发送短信、读取通话记录、通知",
+        )
+        composeRule.onNodeWithText("先开启必要权限").performClick()
+        check(openedPermissions) { "缺少权限时应打开权限清单" }
+    }
+
+    /** 开发快速阈值不是开始按钮：零权限时要明确说明并给出权限入口。 */
+    @Test
+    fun settingsDevFastMissingPermissions() {
+        var openedPermissions = false
+        val callbacks = GuardianHomeCallbacks().apply {
+            onOpenPermissions = { openedPermissions = true }
+        }
+        shotScrolledTo(
+            name = "settings_dev_fast_missing_permissions",
+            anchor = "打开权限清单",
+        ) {
+            GuardianSettings(
+                ui = homeUi(
+                    enabled = false,
+                    contact = true,
+                    debuggable = true,
+                    devFastThresholds = true,
+                ),
+                cb = callbacks,
+                options = standaloneHomeOptions(onPrivacy = {}),
+                onBack = {},
+            )
+        }
+        assertTexts(
+            "开发快速阈值（仅调试包）",
+            "不会自动开始测试，也不会绕过权限",
+            "当前权限未完成，请先检查权限",
+            "打开权限清单",
+        )
+        composeRule.onNodeWithText("打开权限清单").performClick()
+        check(openedPermissions) { "开发快速阈值缺少权限时应打开权限清单" }
     }
 
     /** 凭据有效 + 上次是 1 分钟快速检查：结果卡两行分开展示。 */

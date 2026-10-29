@@ -163,15 +163,20 @@ data class GuardianHomeUi(
             }
         }
 
+    /** 当前缺失的演练必需运行时权限。 */
+    val drillMissingRuntimePermissions: List<Permissions.PermissionItem>
+        get() = perms.filter {
+            it.runtimePermission != null && !it.optional &&
+                it.state != Permissions.CheckState.ON
+        }
+
     /**
      * 演练可发起的最低条件：有联系人 + 当前设备上存在的必需运行时权限全部已授。
      * 按 runtimePermission 判定而不是按 key——notifications 项仅 API33+ 存在，
      * 低版本按 key 查会永远找不到。
      */
     val drillMinReady: Boolean
-        get() = hasContact && perms
-            .filter { it.runtimePermission != null && !it.optional }
-            .all { it.state == Permissions.CheckState.ON }
+        get() = hasContact && drillMissingRuntimePermissions.isEmpty()
 }
 
 /**
@@ -1443,11 +1448,25 @@ private fun SettingsCard(
                 Switch(checked = c.devFastThresholds, onCheckedChange = null)
             }
             if (c.devFastThresholds) {
+                val fastThresholdHint = when {
+                    !ui.permsReady ->
+                        "只缩短已开启守护的等待时间，不会自动开始测试，也不会绕过权限。" +
+                            "当前权限未完成，请先检查权限。"
+                    !c.enabled ->
+                        "只缩短已开启守护的等待时间，不会自动开始测试。" +
+                            "当前守护未开启，不会开始计时。"
+                    else -> "守护已开启：锁屏 30 秒后响铃，再等 15 秒开始联系。"
+                }
                 Text(
-                    "阈值 30 秒、确认 15 秒；仅开发者回归用",
+                    fastThresholdHint,
                     style = MaterialTheme.typography.bodySmall,
                     color = LocalJrxColors.current.warning
                 )
+                if (!ui.permsReady) {
+                    TextButton(onClick = cb.onOpenPermissions) {
+                        Text("打开权限清单")
+                    }
+                }
             }
         }
     }

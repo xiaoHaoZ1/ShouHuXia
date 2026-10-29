@@ -4,6 +4,7 @@ import io.github.xiaohaoz1.jiarenxia.guardian.core.GuardConfig
 import io.github.xiaohaoz1.jiarenxia.guardian.core.GuardState
 import io.github.xiaohaoz1.jiarenxia.guardian.sys.Permissions
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHomeUi
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,6 +90,7 @@ class GuardianHomeUiTest {
             )
         )
         assertFalse(u.drillMinReady)
+        assertEquals(listOf("call_phone"), u.drillMissingRuntimePermissions.map { it.key })
     }
 
     @Test
