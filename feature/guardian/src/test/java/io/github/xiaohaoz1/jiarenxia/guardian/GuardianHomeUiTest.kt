@@ -4,6 +4,7 @@ import io.github.xiaohaoz1.jiarenxia.guardian.core.GuardConfig
 import io.github.xiaohaoz1.jiarenxia.guardian.core.GuardState
 import io.github.xiaohaoz1.jiarenxia.guardian.sys.Permissions
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHomeUi
+import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianSetupStage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -29,13 +30,21 @@ class GuardianHomeUiTest {
     private fun ui(
         contact: String = "13800000000",
         perms: List<Permissions.PermissionItem>,
+        permissionsLoaded: Boolean = true,
+        enabled: Boolean = false,
+        manualItems: List<Permissions.ManualItem> = emptyList(),
+        manualConfirmed: Set<String> = emptySet(),
     ) = GuardianHomeUi(
         config = GuardConfig(
+            enabled = enabled,
             contacts = if (contact.isBlank()) emptyList()
             else listOf(io.github.xiaohaoz1.jiarenxia.guardian.core.EmergencyContact("", contact))
         ),
         state = GuardState(),
         perms = perms,
+        manualItems = manualItems,
+        manualConfirmed = manualConfirmed,
+        permissionsLoaded = permissionsLoaded,
         now = 0,
     )
 
@@ -132,5 +141,62 @@ class GuardianHomeUiTest {
             )
         )
         assertFalse(u.drillMinReady)
+    }
+
+    @Test
+    fun `setup stages are strict and ordered`() {
+        val runtimeOn = listOf(
+            perm("call_phone", "android.permission.CALL_PHONE", Permissions.CheckState.ON),
+            perm("phone_state", "android.permission.READ_PHONE_STATE", Permissions.CheckState.ON),
+            perm("send_sms", "android.permission.SEND_SMS", Permissions.CheckState.ON),
+            perm("call_log", "android.permission.READ_CALL_LOG", Permissions.CheckState.ON),
+            perm("notifications", "android.permission.POST_NOTIFICATIONS", Permissions.CheckState.ON),
+        )
+        assertEquals(
+            GuardianSetupStage.CHECKING,
+            ui(contact = "", perms = emptyList(), permissionsLoaded = false).setupStage,
+        )
+        assertEquals(
+            GuardianSetupStage.RUNTIME_PERMISSIONS,
+            ui(
+                contact = "",
+                perms = runtimeOn.map { it.copy(state = Permissions.CheckState.OFF) },
+            ).setupStage,
+        )
+        assertEquals(
+            GuardianSetupStage.CONTACT,
+            ui(contact = "", perms = runtimeOn).setupStage,
+        )
+        assertEquals(
+            GuardianSetupStage.SYSTEM_SETTINGS,
+            ui(
+                perms = runtimeOn + perm(
+                    "battery", null, Permissions.CheckState.OFF,
+                ),
+            ).setupStage,
+        )
+        assertEquals(
+            GuardianSetupStage.DRILL,
+            ui(
+                perms = runtimeOn + perm(
+                    "battery", null, Permissions.CheckState.ON,
+                ),
+            ).setupStage,
+        )
+    }
+
+    @Test
+    fun `enabled monitoring requires blocking repair when a permission is lost`() {
+        val u = ui(
+            enabled = true,
+            perms = listOf(
+                perm(
+                    "call_phone", "android.permission.CALL_PHONE",
+                    Permissions.CheckState.OFF,
+                ),
+            ),
+        )
+        assertTrue(u.requiresPermissionRepair)
+        assertEquals(listOf("call_phone"), u.permissionRepairItems)
     }
 }

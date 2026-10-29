@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,6 +36,9 @@ import io.github.xiaohaoz1.jiarenxia.ui.designsystem.JrxCard
 import io.github.xiaohaoz1.jiarenxia.ui.designsystem.TitleChip
 import io.github.xiaohaoz1.jiarenxia.ui.theme.LocalJrxColors
 
+/** 权限页用途：首次设置只处理运行时权限，普通入口展示完整系统清单。 */
+enum class PermissionPageMode { REQUIRED_RUNTIME, ALL }
+
 /**
  * 权限清单页（stateless；检测/跳转/勾选全部由外层执行）。
  * 上组：可自动检测项（三态：已开启/未开启/检测不到）。
@@ -46,11 +50,14 @@ fun GuardianPermissions(
     ui: GuardianHomeUi,
     onItemClick: (Permissions.PermissionItem) -> Unit,
     onManualToggle: (String, Boolean) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    mode: PermissionPageMode = PermissionPageMode.ALL,
 ) {
+    val runtimeOnly = mode == PermissionPageMode.REQUIRED_RUNTIME
+    val visibleItems = if (runtimeOnly) ui.drillRequiredRuntimePermissions else ui.perms
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("权限清单") },
+            title = { Text(if (runtimeOnly) "必要权限" else "权限清单") },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回")
@@ -64,7 +71,12 @@ fun GuardianPermissions(
                 .padding(horizontal = 16.dp)
         ) {
             Text(
-                "改完系统设置后回到本页，状态会自动刷新。",
+                if (runtimeOnly) {
+                    "首次设置必须开启以下权限。每次只申请一项，拒绝后仍会停在本页，" +
+                        "不会进入后续功能。"
+                } else {
+                    "改完系统设置后回到本页，状态会自动刷新。"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 4.dp)
@@ -72,9 +84,12 @@ fun GuardianPermissions(
 
             // 上组：可自动检测（UNKNOWN 项移到下面的手动组里确认）
             JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text("自动检测", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (runtimeOnly) "必须授权" else "自动检测",
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Spacer(Modifier.height(4.dp))
-                ui.perms.forEach { item ->
+                visibleItems.forEach { item ->
                     if (item.state != Permissions.CheckState.UNKNOWN) {
                         PermRow(item, onItemClick)
                     }
@@ -83,37 +98,74 @@ fun GuardianPermissions(
 
             // 下组：需手动确认（静态指引项 + 检测不到而降级的自动项）
             val ctx = androidx.compose.ui.platform.LocalContext.current
-            val unknownItems = ui.perms.filter {
+            val unknownItems = visibleItems.filter {
                 !it.optional && it.state == Permissions.CheckState.UNKNOWN
             }
-            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text("需要手动确认", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "这些项代码检测不到，请逐项去系统设置确认后勾选。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                unknownItems.forEach { item ->
-                    ManualRow(
-                        key = "perm_" + item.key,
-                        title = item.title,
-                        desc = item.desc + "（代码检测不到，请手动确认）",
-                        confirmed = ui.manualConfirmed.contains("perm_" + item.key),
-                        onToggle = onManualToggle,
-                        onOpen = { onItemClick(item) }
+            if (!runtimeOnly) {
+                JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text("需要手动确认", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "这些项代码检测不到，请逐项去系统设置确认后勾选。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(8.dp))
+                    unknownItems.forEach { item ->
+                        ManualRow(
+                            key = "perm_" + item.key,
+                            title = item.title,
+                            desc = item.desc + "（代码检测不到，请手动确认）",
+                            confirmed = ui.manualConfirmed.contains("perm_" + item.key),
+                            onToggle = onManualToggle,
+                            onOpen = { onItemClick(item) }
+                        )
+                    }
+                    ui.manualItems.forEach { m ->
+                        ManualRow(
+                            key = m.key,
+                            title = m.title,
+                            desc = m.desc,
+                            confirmed = ui.manualConfirmed.contains(m.key),
+                            onToggle = onManualToggle,
+                            onOpen = m.open?.let { op -> { op(ctx) } }
+                        )
+                    }
                 }
-                ui.manualItems.forEach { m ->
-                    ManualRow(
-                        key = m.key,
-                        title = m.title,
-                        desc = m.desc,
-                        confirmed = ui.manualConfirmed.contains(m.key),
-                        onToggle = onManualToggle,
-                        onOpen = m.open?.let { op -> { op(ctx) } }
+            } else {
+                val missing = ui.drillMissingRuntimePermissions
+                JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text(
+                        if (missing.isEmpty()) "必要权限已完成"
+                        else "还差 ${missing.size} 项",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (missing.isEmpty()) LocalJrxColors.current.success
+                            else LocalJrxColors.current.warning,
                     )
+                    Text(
+                        if (missing.isEmpty()) {
+                            "现在可以继续设置紧急联系人。"
+                        } else {
+                            "下一项：${missing.first().title}。如果系统不再弹出授权框，" +
+                                "按钮会改为打开应用信息页。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            if (missing.isEmpty()) onBack()
+                            else onItemClick(missing.first())
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                    ) {
+                        Text(
+                            if (missing.isEmpty()) "下一步：设置紧急联系人"
+                            else "继续授权：${missing.first().title}"
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(96.dp))

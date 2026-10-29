@@ -25,7 +25,9 @@ import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianDrill
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHome
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHomeCallbacks
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHomeUi
+import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianPermissions
 import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianSettings
+import io.github.xiaohaoz1.jiarenxia.guardian.ui.PermissionPageMode
 import io.github.xiaohaoz1.jiarenxia.ui.theme.JrxTheme
 import java.io.File
 import org.junit.Rule
@@ -152,6 +154,16 @@ class GuardianShotsTest {
         it.copy(state = Permissions.CheckState.ON)
     }
 
+    /** 首次安装：全部运行时权限关闭，其余系统项保持合成状态。 */
+    private fun runtimePermsOff() = demoPerms().map {
+        if (it.runtimePermission != null) it.copy(state = Permissions.CheckState.OFF) else it
+    }
+
+    /** 运行时权限已授，后台保护项仍未完成。 */
+    private fun runtimePermsOn() = demoPerms().map {
+        if (it.runtimePermission != null) it.copy(state = Permissions.CheckState.ON) else it
+    }
+
     /** 演练通过记录（合成数据；等待 30 分钟、每位判定全过）。 */
     private fun passedDrill(
         contacts: List<io.github.xiaohaoz1.jiarenxia.guardian.core.EmergencyContact>,
@@ -229,7 +241,11 @@ class GuardianShotsTest {
     @Composable
     private fun Home(enabled: Boolean, contact: Boolean) {
         GuardianHome(
-            homeUi(enabled, contact),
+            homeUi(
+                enabled = enabled,
+                contact = contact,
+                perms = if (enabled) permsAllOn() else demoPerms(),
+            ),
             GuardianHomeCallbacks(),
             standaloneHomeOptions(onPrivacy = {})
         )
@@ -245,34 +261,52 @@ class GuardianShotsTest {
         )
     }
 
-    // ---------- 首页：未开启（暖白固定主题 / 大字号） ----------
+    // ---------- 首页：严格首次设置（暖白固定主题 / 大字号） ----------
 
     @Test
     fun homeDisabled() = shot("home_disabled") {
-        Home(enabled = false, contact = false)
-    }.also {
-        // 新装四步向导：说明卡 + ①联系人 ②权限 ③演练 + 主按钮指向下一步
-        assertTexts(
-            "守护侠", "未开启", "适合装在长辈的手机上",
-            "守护是什么", "紧急联系人", "还没有设置",
-            "权限与系统设置", "实机演练", "还没有测试过",
-            "设置", "选择紧急联系人", "8 小时无活动"
+        GuardianHome(
+            homeUi(enabled = false, contact = false, perms = runtimePermsOff()),
+            GuardianHomeCallbacks(),
+            standaloneHomeOptions(onPrivacy = {}),
         )
-        // 旧的"先用测试模式"提示卡已移除；守护侠无家人入口
-        assertNoTexts("测试模式", "从家人中选择", "家人资料里还没有其他家人",
-            "还没填手机号", "如果家人侠里开着守护")
+    }.also {
+        // 新装先被运行时权限硬门槛拦住，不能看到联系人、演练和普通设置。
+        assertTexts(
+            "守护侠", "首次设置", "第 1 / 4 步", "授权必要权限",
+            "为什么必须授权", "开始授权必要权限", "不能跳过",
+            "隐私说明",
+        )
+        assertNoTexts(
+            "设置紧急联系人", "开始完整实机测试", "开发快速阈值", "守护设置",
+        )
+    }
+
+    @Test
+    fun homeRuntimePermissionsReady() = shot("home_runtime_permissions_ready") {
+        GuardianHome(
+            homeUi(enabled = false, contact = false, perms = permsAllOn()),
+            GuardianHomeCallbacks(),
+            standaloneHomeOptions(onPrivacy = {}),
+        )
+    }.also {
+        assertTexts("第 2 / 4 步", "设置紧急联系人", "至少设置 1 位", "添加联系人")
+        assertNoTexts("开发快速阈值", "实机演练")
     }
 
     @Test
     fun homeContactSet() = shot("home_contact_set") {
         GuardianHome(
-            homeUi(enabled = false, contact = true),
+            homeUi(enabled = false, contact = true, perms = runtimePermsOn()),
             GuardianHomeCallbacks(),
-            standaloneHomeOptions(onPrivacy = {})
+            standaloneHomeOptions(onPrivacy = {}),
         )
     }.also {
-        // ①完成 → 主按钮指向②
-        assertTexts("杨明", "138 0013 8000", "继续设置权限")
+        assertTexts(
+            "第 3 / 4 步", "完成后台保护设置", "杨明", "李华",
+            "继续完成系统设置",
+        )
+        assertNoTexts("开发快速阈值", "开始完整实机测试")
     }
 
     @Test
@@ -280,45 +314,95 @@ class GuardianShotsTest {
         GuardianHome(
             homeUi(enabled = false, contact = true, perms = permsAllOn()),
             GuardianHomeCallbacks(),
-            standaloneHomeOptions(onPrivacy = {})
+            standaloneHomeOptions(onPrivacy = {}),
         )
     }.also {
-        // ①②完成 → 主按钮指向③
-        assertTexts("开始实机测试")
+        assertTexts("第 4 / 4 步", "最后一步：实机演练", "开始完整实机测试")
+        assertNoTexts("开发快速阈值", "守护设置")
     }
 
     @Test
     fun homeDrillPassed() = shot("home_drill_passed") {
         GuardianHome(
             homeUi(
-                enabled = false, contact = true, perms = permsAllOn(),
-                drillResult = passedDrill(listOf(cA, cB))),
+                enabled = false,
+                contact = true,
+                perms = permsAllOn(),
+                drillResult = passedDrill(listOf(cA, cB)),
+            ),
             GuardianHomeCallbacks(),
-            standaloneHomeOptions(onPrivacy = {})
+            standaloneHomeOptions(onPrivacy = {}),
         )
     }.also {
-        // 全部就绪 → 主按钮"开启守护"；演练卡显示上次通过
-        assertTexts("开启守护", "上次通过")
+        assertTexts("设置完成", "全部设置已完成", "开启守护")
     }
 
     @Test
     fun homeEnabledAnomaly() = shot("home_enabled_anomaly") {
         GuardianHome(
             homeUi(
-                enabled = true, contact = true, perms = permsAllOn(),
+                enabled = true,
+                contact = true,
+                perms = permsAllOn(),
                 drillResult = passedDrill(listOf(cA, cB)),
-                anomalies = listOf("必需项已被关闭：忽略电池优化")),
+                anomalies = listOf("开启凭据已失效：应用版本已更新"),
+            ),
             GuardianHomeCallbacks(),
-            standaloneHomeOptions(onPrivacy = {})
+            standaloneHomeOptions(onPrivacy = {}),
         )
     }.also {
-        // 开启后检测到异常 → 红色置顶卡 + 处理入口
-        assertTexts("守护可能失效", "必需项已被关闭", "检查权限", "重新测试", "实机测试")
+        // 非权限异常仍保留正常守护页与重新测试入口。
+        assertTexts("守护可能失效", "开启凭据已失效", "检查权限", "重新测试", "实机测试")
+    }
+
+    @Test
+    fun homeEnabledPermissionRepair() = shot("home_enabled_permission_repair") {
+        GuardianHome(
+            homeUi(
+                enabled = true,
+                contact = true,
+                perms = runtimePermsOff(),
+                drillResult = passedDrill(listOf(cA, cB)),
+            ),
+            GuardianHomeCallbacks(),
+            standaloneHomeOptions(onPrivacy = {}),
+        )
+    }.also {
+        assertTexts(
+            "守护需要修复", "守护仍保持开启", "待修复", "立即修复权限",
+            "查看守护记录", "停止守护", "隐私说明",
+        )
+        assertNoTexts("运行状态", "开发快速阈值", "实机测试")
     }
 
     @Test
     fun homeDisabledLarge() = shotLarge("home_disabled") {
-        Home(enabled = false, contact = false)
+        GuardianHome(
+            homeUi(enabled = false, contact = false, perms = runtimePermsOff()),
+            GuardianHomeCallbacks(),
+            standaloneHomeOptions(onPrivacy = {}),
+        )
+    }
+
+    @Test
+    fun requiredPermissionsPage() {
+        var requestedKey = ""
+        shot("permissions_required") {
+            GuardianPermissions(
+                ui = homeUi(enabled = false, contact = false, perms = runtimePermsOff()),
+                onItemClick = { requestedKey = it.key },
+                onManualToggle = { _, _ -> },
+                onBack = {},
+                mode = PermissionPageMode.REQUIRED_RUNTIME,
+            )
+        }
+        assertTexts(
+            "必要权限", "必须授权", "拨打电话", "读取通话状态", "发送短信",
+            "读取通话记录", "通知", "还差 5 项", "继续授权：拨打电话",
+        )
+        assertNoTexts("需要手动确认", "使用情况访问", "开发快速阈值")
+        composeRule.onNodeWithText("继续授权：拨打电话").performClick()
+        check(requestedKey == "call_phone") { "必要权限页应逐项申请第一个缺失权限" }
     }
 
     // ---------- 实机演练页（等待时长五档） ----------

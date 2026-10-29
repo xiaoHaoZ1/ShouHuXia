@@ -41,15 +41,24 @@ fun GuardianTabContent(
     val manualConfirmed by ServiceLocator.store.manualFlow.collectAsStateWithLifecycle()
 
     var perms by remember { mutableStateOf<List<Permissions.PermissionItem>>(emptyList()) }
+    var permissionsLoaded by remember { mutableStateOf(false) }
     var anomalies by remember { mutableStateOf<List<String>>(emptyList()) }
     var logLines by remember { mutableStateOf<List<String>>(emptyList()) }
     var logTick by remember { mutableIntStateOf(0) }
     var confirmEnable by remember { mutableStateOf(false) }
+    var permissionModeName by rememberSaveable {
+        mutableStateOf(PermissionPageMode.ALL.name)
+    }
+    val permissionMode = PermissionPageMode.valueOf(permissionModeName)
+    var requestedRuntimePerms by remember { mutableStateOf(emptySet<String>()) }
+    // 权限清单可来自首页向导或设置页：返回时回到来源页
+    var permsFrom by rememberSaveable { mutableStateOf(GuardianScreen.HOME.name) }
 
     // 进入页面 / 回前台时刷新权限快照；"未使用应用限制"是异步查询，结果回填
     fun refreshPerms() {
         val snap = Permissions.snapshot(context)
         perms = snap
+        permissionsLoaded = true
         if (snap.any { it.key == "unused_restrictions" }) {
             Permissions.unusedRestrictionsStatus(context) { st ->
                 perms = perms.map {
@@ -81,13 +90,24 @@ fun GuardianTabContent(
         }
     }
 
-    // 开启流程：先申请运行时权限，缺拨号权限则提示并中止
+    // 开启流程的最后兜底：严格向导正常情况下不会再缺运行时权限。
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
+    ) {
         refreshPerms()
-        if (result[android.Manifest.permission.CALL_PHONE] == false) {
-            Toast.makeText(context, "需要“拨打电话”权限才能在紧急时自动拨号", Toast.LENGTH_LONG).show()
+        val stillMissing = Permissions.runtimePerms.any {
+            androidx.core.content.ContextCompat.checkSelfPermission(context, it) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (stillMissing) {
+            Toast.makeText(
+                context,
+                "必要权限尚未完成，不能开启守护",
+                Toast.LENGTH_LONG,
+            ).show()
+            permissionModeName = PermissionPageMode.REQUIRED_RUNTIME.name
+            permsFrom = GuardianScreen.HOME.name
+            screenName = GuardianScreen.PERMISSIONS.name
         } else {
             confirmEnable = true
         }
@@ -113,7 +133,7 @@ fun GuardianTabContent(
         refreshPerms()
         if (!granted) {
             Toast.makeText(
-                context, "未授予权限，可在应用信息页手动开启",
+                context, "未授予权限；可再次尝试，系统不再弹窗时会打开应用信息页",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -156,8 +176,6 @@ fun GuardianTabContent(
         }
     }
 
-    // 权限清单可来自首页向导或设置页：返回时回到来源页
-    var permsFrom by rememberSaveable { mutableStateOf(GuardianScreen.HOME.name) }
     BackHandler(enabled = screen != GuardianScreen.HOME) {
         screenName = when (screen) {
             GuardianScreen.PERMISSIONS -> permsFrom
@@ -253,7 +271,13 @@ fun GuardianTabContent(
             ServiceLocator.engine.handle(Event.ConfigChanged)
         }
         onOpenSettings = { screenName = GuardianScreen.SETTINGS.name }
+        onOpenRequiredPermissions = {
+            permissionModeName = PermissionPageMode.REQUIRED_RUNTIME.name
+            permsFrom = GuardianScreen.HOME.name
+            screenName = GuardianScreen.PERMISSIONS.name
+        }
         onOpenPermissions = {
+            permissionModeName = PermissionPageMode.ALL.name
             permsFrom = screen.name
             screenName = GuardianScreen.PERMISSIONS.name
         }
@@ -280,7 +304,18 @@ fun GuardianTabContent(
                     context, rp
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!grantedNow) {
-                singlePermLauncher.launch(rp)
+                val activity = context as? android.app.Activity
+                val systemWillNotAskAgain = requestedRuntimePerms.contains(rp) &&
+                    activity != null &&
+                    !androidx.core.app.ActivityCompat
+                        .shouldShowRequestPermissionRationale(activity, rp)
+                if (systemWillNotAskAgain) {
+                    item.settingsIntent?.let { runCatching { context.startActivity(it) } }
+                        ?: onOpenAppSettings()
+                } else {
+                    requestedRuntimePerms = requestedRuntimePerms + rp
+                    singlePermLauncher.launch(rp)
+                }
             } else {
                 item.settingsIntent?.let { runCatching { context.startActivity(it) } }
                     ?: onOpenAppSettings()
@@ -302,6 +337,7 @@ fun GuardianTabContent(
         perms = perms,
         manualItems = remember { Permissions.manualItems(context) },
         manualConfirmed = manualConfirmedSet,
+        permissionsLoaded = permissionsLoaded,
         debuggable = debuggable,
         versionCode = ServiceLocator.ports.appVersionCode(),
         fingerprint = fp,
@@ -309,6 +345,49 @@ fun GuardianTabContent(
         confirmingEnable = confirmEnable,
         now = System.currentTimeMillis()
     )
+
+    // 首次设置与修复状态下强制收口路由，恢复进程/旋转屏幕后也不能停留在后续页面。
+    LaunchedEffect(
+        ui.setupStage,
+        ui.requiresPermissionRepair,
+        config.enabled,
+        state.phase,
+        state.drill.active,
+        screen,
+        permissionMode,
+    ) {
+        if (!config.enabled && screen == GuardianScreen.PERMISSIONS) {
+            val requiredMode = when (ui.setupStage) {
+                GuardianSetupStage.RUNTIME_PERMISSIONS -> PermissionPageMode.REQUIRED_RUNTIME
+                GuardianSetupStage.SYSTEM_SETTINGS -> PermissionPageMode.ALL
+                else -> null
+            }
+            if (requiredMode != null && permissionMode != requiredMode) {
+                permissionModeName = requiredMode.name
+            }
+        }
+        val allowed = when {
+            !config.enabled -> when (ui.setupStage) {
+                GuardianSetupStage.CHECKING,
+                GuardianSetupStage.CONTACT,
+                -> setOf(GuardianScreen.HOME)
+                GuardianSetupStage.RUNTIME_PERMISSIONS ->
+                    setOf(GuardianScreen.HOME, GuardianScreen.PERMISSIONS)
+                GuardianSetupStage.SYSTEM_SETTINGS ->
+                    setOf(GuardianScreen.HOME, GuardianScreen.PERMISSIONS)
+                GuardianSetupStage.DRILL ->
+                    setOf(GuardianScreen.HOME, GuardianScreen.DRILL)
+                GuardianSetupStage.READY -> GuardianScreen.entries.toSet()
+            }
+            ui.requiresPermissionRepair -> setOf(
+                GuardianScreen.HOME,
+                GuardianScreen.PERMISSIONS,
+                GuardianScreen.LOG,
+            )
+            else -> GuardianScreen.entries.toSet()
+        }
+        if (screen !in allowed) screenName = GuardianScreen.HOME.name
+    }
 
     fun onManualToggle(key: String, on: Boolean) {
         if (on) ServiceLocator.store.confirmManual(key, fp)
@@ -328,7 +407,8 @@ fun GuardianTabContent(
             ui = ui,
             onItemClick = cb.onPermItem,
             onManualToggle = ::onManualToggle,
-            onBack = { screenName = permsFrom }
+            onBack = { screenName = permsFrom },
+            mode = permissionMode,
         )
         GuardianScreen.DRILL -> GuardianDrill(
             ui = ui,

@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContactPhone
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -96,6 +95,8 @@ data class GuardianHomeUi(
     val manualItems: List<Permissions.ManualItem> = emptyList(),
     /** 当前已确认的手动项 key 集合（含 "perm_xxx" 降级项）。 */
     val manualConfirmed: Set<String> = emptySet(),
+    /** 权限快照是否完成首次读取；未完成前不能误判为已授权。 */
+    val permissionsLoaded: Boolean = true,
     /** 是否调试包：决定是否显示"开发快速阈值"开关。 */
     val debuggable: Boolean = false,
     /** 环境信息：演练记录有效性判定。 */
@@ -132,7 +133,7 @@ data class GuardianHomeUi(
      * 所有手动确认项已勾选。
      */
     val permsReady: Boolean
-        get() = autoRequired.all {
+        get() = permissionsLoaded && autoRequired.all {
             it.state == Permissions.CheckState.ON ||
                 (it.state == Permissions.CheckState.UNKNOWN &&
                     manualConfirmed.contains("perm_" + it.key))
@@ -170,13 +171,60 @@ data class GuardianHomeUi(
                 it.state != Permissions.CheckState.ON
         }
 
+    /** 当前平台上的演练必需运行时权限。 */
+    val drillRequiredRuntimePermissions: List<Permissions.PermissionItem>
+        get() = perms.filter { it.runtimePermission != null && !it.optional }
+
+    /** 首次设置第一道硬门槛：运行时权限快照已读取且全部授予。 */
+    val runtimePermissionsReady: Boolean
+        get() = permissionsLoaded && drillMissingRuntimePermissions.isEmpty()
+
     /**
      * 演练可发起的最低条件：有联系人 + 当前设备上存在的必需运行时权限全部已授。
      * 按 runtimePermission 判定而不是按 key——notifications 项仅 API33+ 存在，
      * 低版本按 key 查会永远找不到。
      */
     val drillMinReady: Boolean
-        get() = hasContact && drillMissingRuntimePermissions.isEmpty()
+        get() = hasContact && runtimePermissionsReady
+
+    /** 首次设置严格按顺序推进，未完成阶段不能进入后续功能。 */
+    val setupStage: GuardianSetupStage
+        get() = when {
+            !permissionsLoaded -> GuardianSetupStage.CHECKING
+            !runtimePermissionsReady -> GuardianSetupStage.RUNTIME_PERMISSIONS
+            !hasContact -> GuardianSetupStage.CONTACT
+            !permsReady -> GuardianSetupStage.SYSTEM_SETTINGS
+            !drillValid -> GuardianSetupStage.DRILL
+            else -> GuardianSetupStage.READY
+        }
+
+    /** 已开启且处于普通监测时，必要权限失效则首页进入阻断式修复页。 */
+    val requiresPermissionRepair: Boolean
+        get() = config.enabled && state.phase == Phase.MONITORING &&
+            !state.drill.active && !permsReady
+
+    /** 修复页逐项说明当前缺失的必需权限或人工确认。 */
+    val permissionRepairItems: List<String>
+        get() = buildList {
+            autoRequired.forEach { item ->
+                val ready = item.state == Permissions.CheckState.ON ||
+                    (item.state == Permissions.CheckState.UNKNOWN &&
+                        manualConfirmed.contains("perm_" + item.key))
+                if (!ready) add(item.title)
+            }
+            manualItems.filterNot { manualConfirmed.contains(it.key) }
+                .forEach { add(it.title) }
+        }.distinct()
+}
+
+/** 首次设置阶段；顺序就是用户必须完成的安全门槛。 */
+enum class GuardianSetupStage {
+    CHECKING,
+    RUNTIME_PERMISSIONS,
+    CONTACT,
+    SYSTEM_SETTINGS,
+    DRILL,
+    READY,
 }
 
 /**
@@ -217,6 +265,8 @@ class GuardianHomeCallbacks {
     var onQuietEnd: (Int) -> Unit = {}
     var onDevFastThresholds: (Boolean) -> Unit = {}
     var onOpenSettings: () -> Unit = {}
+    /** 首次设置专用：只展示并申请 5 项运行时权限。 */
+    var onOpenRequiredPermissions: () -> Unit = {}
     var onOpenPermissions: () -> Unit = {}
     var onOpenLog: () -> Unit = {}
     var onSendSms: () -> Unit = {}
@@ -266,10 +316,20 @@ fun GuardianHome(
             }
 
             Column(Modifier.padding(horizontal = 16.dp)) {
-                if (!ui.config.enabled) {
-                    SetupWizard(ui, cb, onAddContact = { pickerSheet = true })
-                } else {
-                    EnabledSection(ui, cb, onAskStop = { stopConfirm = true })
+                when {
+                    !ui.config.enabled -> SetupWizard(
+                        ui = ui,
+                        cb = cb,
+                        options = options,
+                        onAddContact = { pickerSheet = true },
+                    )
+                    ui.requiresPermissionRepair -> PermissionRepairSection(
+                        ui = ui,
+                        cb = cb,
+                        options = options,
+                        onAskStop = { stopConfirm = true },
+                    )
+                    else -> EnabledSection(ui, cb, onAskStop = { stopConfirm = true })
                 }
                 Spacer(Modifier.height(96.dp))
             }
@@ -486,7 +546,15 @@ private fun statusSubtitle(ui: GuardianHomeUi): String {
     val s = ui.state
     return when {
         s.drill.active -> "实机测试进行中"
-        !c.enabled -> "未开启 · 适合装在长辈的手机上"
+        !c.enabled -> when (ui.setupStage) {
+            GuardianSetupStage.CHECKING -> "首次设置 · 正在检查权限"
+            GuardianSetupStage.RUNTIME_PERMISSIONS -> "首次设置 · 第 1 / 4 步"
+            GuardianSetupStage.CONTACT -> "首次设置 · 第 2 / 4 步"
+            GuardianSetupStage.SYSTEM_SETTINGS -> "首次设置 · 第 3 / 4 步"
+            GuardianSetupStage.DRILL -> "首次设置 · 第 4 / 4 步"
+            GuardianSetupStage.READY -> "首次设置已完成"
+        }
+        ui.requiresPermissionRepair -> "守护需要修复"
         s.phase == Phase.MONITORING -> ""
         s.phase == Phase.CONFIRMING -> "正在等待确认"
         s.phase == Phase.ALERTING ->
@@ -495,86 +563,203 @@ private fun statusSubtitle(ui: GuardianHomeUi): String {
     }
 }
 
-// ---------- 未开启：四步向导 ----------
+// ---------- 未开启：严格顺序首次设置 ----------
 
 @Composable
 private fun SetupWizard(
     ui: GuardianHomeUi,
     cb: GuardianHomeCallbacks,
+    options: GuardianHomeOptions,
     onAddContact: () -> Unit
 ) {
-    // 0. 说明卡
+    val stage = ui.setupStage
+    val (step, stepTitle) = when (stage) {
+        GuardianSetupStage.CHECKING -> 0 to "正在检查这台手机"
+        GuardianSetupStage.RUNTIME_PERMISSIONS -> 1 to "授权必要权限"
+        GuardianSetupStage.CONTACT -> 2 to "设置紧急联系人"
+        GuardianSetupStage.SYSTEM_SETTINGS -> 3 to "完成后台保护设置"
+        GuardianSetupStage.DRILL -> 4 to "完成实机演练"
+        GuardianSetupStage.READY -> 4 to "设置完成"
+    }
+
     JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text("守护是什么", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(10.dp))
-        IntroStep(Icons.Rounded.PhoneAndroid, "手机长时间没人使用（默认 8 小时）")
-        IntroStep(Icons.Rounded.NotificationsActive, "先大声响铃，请对方确认“我没事”")
-        IntroStep(Icons.Rounded.Call, "无人响应时，先给紧急联系人发短信，再依次打电话")
-        Spacer(Modifier.height(6.dp))
+        Text("首次设置", style = MaterialTheme.typography.titleMedium)
         Text(
-            "不联网，只会联系你设定的人。建议装在独居长辈的手机上。",
+            if (stage == GuardianSetupStage.CHECKING) stepTitle
+            else "第 $step / 4 步 · $stepTitle",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = { step.toFloat() / 4f },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            if (stage == GuardianSetupStage.READY) {
+                "必要权限、紧急联系人、后台保护和实机演练均已完成。"
+            } else {
+                "未完成当前步骤，不能进入后续功能或开启守护。"
+            },
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
         )
     }
 
-    // ① 紧急联系人（与设置页共用同一个列表编辑组件）
-    StepCard(
-        index = "①", title = "紧急联系人", done = ui.hasContact,
-        summary = if (ui.hasContact)
-            "已设置 ${ui.config.validContacts.size} 位：" +
-                ui.config.validContacts.joinToString("、") { it.label() }
-        else "还没有设置"
-    ) {
+    when (stage) {
+        GuardianSetupStage.CHECKING -> {
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("正在读取权限状态…", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "请稍候，守护侠会先确认哪些必要权限还没有开启。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+        GuardianSetupStage.RUNTIME_PERMISSIONS -> {
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("为什么必须授权", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                IntroStep(Icons.Rounded.NotificationsActive, "到期时响铃并在锁屏上提醒")
+                IntroStep(Icons.Rounded.Call, "无人响应时发送短信并拨打紧急联系人")
+                IntroStep(Icons.Rounded.PhoneAndroid, "判断守护侠拨出的电话是否真正接通")
+                Text(
+                    "这些权限只用于本机守护，不联网、不上传资料。拒绝后守护链路不完整，" +
+                        "因此不能跳过。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = cb.onOpenRequiredPermissions,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                ) { Text("开始授权必要权限") }
+            }
+        }
+        GuardianSetupStage.CONTACT -> {
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("设置紧急联系人", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "至少设置 1 位、最多 3 位。出事时先群发短信，再按这里的顺序拨号。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                ContactListEditor(ui, cb, onAdd = onAddContact)
+            }
+        }
+        GuardianSetupStage.SYSTEM_SETTINGS -> {
+            SetupContactEditor(ui, cb, onAddContact)
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("完成后台保护设置", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "守护需要长期在锁屏后台可靠运行。请完成省电无限制、自启动、" +
+                        "锁屏通知等项目；代码检测不到的项目需要逐项确认。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "自动检测 ${ui.autoDone}/${ui.autoRequired.size} · " +
+                        "手动确认 ${ui.manualDone}/${ui.manualTotal}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = LocalJrxColors.current.warning,
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = cb.onOpenPermissions,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                ) { Text("继续完成系统设置") }
+            }
+        }
+        GuardianSetupStage.DRILL -> {
+            SetupContactEditor(ui, cb, onAddContact)
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("最后一步：实机演练", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "必须完成一次 ≥30 分钟的完整演练，验证锁屏响铃、测试短信、" +
+                        "自动拨号和接通判定都能工作。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(
+                    drillSummary(ui),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = cb.onOpenDrill,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                ) {
+                    Text(if (ui.state.lastDrillResult == null)
+                        "开始完整实机测试" else "查看结果并重新测试")
+                }
+            }
+        }
+        GuardianSetupStage.READY -> {
+            JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text("全部设置已完成", style = MaterialTheme.typography.titleMedium,
+                    color = LocalJrxColors.current.success)
+                Text(
+                    "必要权限、紧急联系人、后台保护和完整演练都已就绪。" +
+                        "确认后即可开始守护。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = cb.onEnableRequest,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                ) { Text("开启守护", style = MaterialTheme.typography.titleMedium) }
+            }
+            SettingsEntryCard(ui, cb.onOpenSettings)
+        }
+    }
+
+    if (stage != GuardianSetupStage.READY) {
+        JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Text(
+                "需要先完成当前步骤。系统权限被拒绝时，守护侠不会假装已经可以工作。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    options.footer?.invoke()
+}
+
+/** 首次设置后续阶段保留联系人编辑，允许在演练前补到 2–3 位或调整顺序。 */
+@Composable
+private fun SetupContactEditor(
+    ui: GuardianHomeUi,
+    cb: GuardianHomeCallbacks,
+    onAddContact: () -> Unit,
+) {
+    JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(
+            "紧急联系人（${ui.config.validContacts.size} / ${GuardConfig.MAX_CONTACTS}）",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            "演练前仍可增删或调整顺序；修改后需要按新名单重新测试。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
         Spacer(Modifier.height(6.dp))
         ContactListEditor(ui, cb, onAdd = onAddContact)
     }
-
-    // ② 权限与系统设置（手动确认口径与 permsReady 一致：含 UNKNOWN 降级项）
-    StepCard(
-        index = "②", title = "权限与系统设置", done = ui.permsReady,
-        summary = "自动检测 ${ui.autoDone}/${ui.autoRequired.size} · " +
-            "手动确认 ${ui.manualDone}/${ui.manualTotal}"
-    ) {
-        OutlinedButton(onClick = cb.onOpenPermissions, modifier = Modifier.fillMaxWidth()) {
-            Text("去设置权限")
-        }
-    }
-
-    // ③ 实机演练
-    StepCard(
-        index = "③", title = "实机演练", done = ui.drillValid,
-        summary = drillSummary(ui)
-    ) {
-        if (!ui.hasContact || !ui.permsReady) {
-            Text(
-                "完成前两步后再测试更准确",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(6.dp))
-        }
-        OutlinedButton(onClick = cb.onOpenDrill, modifier = Modifier.fillMaxWidth()) {
-            Text(if (ui.state.lastDrillResult == null) "开始实机测试" else "查看/重新测试")
-        }
-    }
-
-    SettingsEntryCard(ui, cb.onOpenSettings)
-
-    // 主按钮永远可点、永远指向下一步
-    val (label, action) = when {
-        !ui.hasContact -> "选择紧急联系人" to onAddContact
-        !ui.permsReady -> "继续设置权限" to cb.onOpenPermissions
-        !ui.drillValid -> "开始实机测试" to cb.onOpenDrill
-        else -> "开启守护" to cb.onEnableRequest
-    }
-    Button(
-        onClick = action,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp)
-            .height(56.dp)
-    ) { Text(label, style = MaterialTheme.typography.titleMedium) }
 }
 
 /**
@@ -595,46 +780,6 @@ private fun drillSummary(ui: GuardianHomeUi): String {
         }
     }
     return last + "\n" + ui.drillCredentialStatus
-}
-
-/** 向导步骤卡：序号 + 标题 + 完成态（✓ 或待办） + 内容。 */
-@Composable
-private fun StepCard(
-    index: String, title: String, done: Boolean, summary: String,
-    content: @Composable () -> Unit
-) {
-    JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val tint = if (done) LocalJrxColors.current.success
-                else MaterialTheme.colorScheme.primary
-            Surface(
-                shape = CircleShape,
-                color = tint.copy(alpha = 0.15f),
-                modifier = Modifier.size(28.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (done) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = tint,
-                            modifier = Modifier.size(18.dp))
-                    } else {
-                        Text(index, style = MaterialTheme.typography.labelLarge,
-                            color = tint, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f))
-        }
-        Text(
-            summary,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (done) LocalJrxColors.current.success
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp)
-        )
-        content()
-    }
 }
 
 @Composable
@@ -782,6 +927,88 @@ private fun RunDetails(c: GuardConfig, s: GuardState, now: Long) {
             modifier = Modifier.padding(top = 6.dp)
         )
     }
+}
+
+// ---------- 已开启：权限失效时先阻断修复 ----------
+
+/**
+ * 守护已开启但必要权限或后台设置失效：保留守护开关，不假装链路正常，
+ * 首页只提供修复、记录与停止入口。报警阶段仍由 [EnabledSection] 优先展示关键操作。
+ */
+@Composable
+private fun PermissionRepairSection(
+    ui: GuardianHomeUi,
+    cb: GuardianHomeCallbacks,
+    options: GuardianHomeOptions,
+    onAskStop: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "守护需要修复",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            Text(
+                "守护仍保持开启，但必要权限或后台保护没有完成，响铃、短信或拨号可能失效。" +
+                    "修复前不能继续使用普通设置和开发测试。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            if (ui.permissionRepairItems.isNotEmpty()) {
+                Text(
+                    "待修复：" + ui.permissionRepairItems.joinToString("、"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Button(
+                onClick = cb.onOpenPermissions,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+            ) { Text("立即修复权限") }
+        }
+    }
+
+    JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text("修复完成后", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "回到守护侠会自动重新检查；全部恢复后才显示正常守护首页。" +
+                "守护记录仍可用于排查。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = cb.onOpenLog, modifier = Modifier.fillMaxWidth()) {
+            Text("查看守护记录")
+        }
+    }
+
+    options.footer?.invoke()
+    OutlinedButton(
+        onClick = onAskStop,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.error,
+        ),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(52.dp),
+    ) { Text("停止守护") }
 }
 
 // ---------- 已开启 ----------
