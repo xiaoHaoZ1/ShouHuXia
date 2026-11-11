@@ -47,7 +47,7 @@ class SmsTextMaskTest {
             now = 1_700_003_600_000L,  // +1h
             batteryPct = 87, charging = true, inUse = false
         )
-        assertTrue(t.startsWith("【守护侠】"))
+        assertTrue(t.startsWith("【守护家人侠】"))
         assertTrue(t.contains("1小时前"))
         assertTrue(t.contains("电量87%，充电中"))
         assertTrue(t.contains("请检查手机是否关机"))
@@ -79,7 +79,7 @@ class SmsTextMaskTest {
             now = 1_700_003_600_000L + 1_800_000L, // 无人使用 1.5 小时
             batteryPct = 62, charging = false,
         )
-        assertTrue(t.startsWith("【守护侠】紧急"))
+        assertTrue(t.startsWith("【守护家人侠】紧急"))
         assertTrue(t.contains("自动发出的提醒"))
         assertTrue(t.contains("1小时30分"))
         assertTrue(t.contains("最后使用"))
@@ -97,13 +97,13 @@ class SmsTextMaskTest {
     @Test
     fun `answered summary no-answer resolved and drill texts`() {
         assertEquals(
-            "【守护侠】报警电话已由 张三 接听，不再拨打其他联系人。",
+            "【守护家人侠】报警电话已由 张三 接听，不再拨打其他联系人。",
             SmsText.answered("张三")
         )
         assertTrue(SmsText.summary(listOf("张三", "李四")).contains("张三、李四"))
         assertTrue(SmsText.noAnswer().contains("无人接听"))
         assertTrue(SmsText.resolved().contains("已解除"))
-        assertTrue(SmsText.drillTest().startsWith("【守护侠·测试】"))
+        assertTrue(SmsText.drillTest().startsWith("【守护家人侠·测试】"))
         assertTrue(SmsText.drillTest().contains("不是真实报警"))
     }
 

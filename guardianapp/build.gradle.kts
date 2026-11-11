@@ -14,14 +14,14 @@ android {
         applicationId = "com.jiarenxia.guardian"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.1.0"
+        versionCode = 5
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
     // 正式版签名与家人侠共用同一份 keystore.properties（工程根目录，不入库；
-    // 守护侠与家人侠同一把密钥，见 ROADMAP C1）。文件缺失时 release 保持未签名。
+    // 守护家人侠与家人侠同一把密钥，见 ROADMAP C1）。文件缺失时 release 保持未签名。
     val signingPropsFile = rootProject.file("keystore.properties")
     if (signingPropsFile.exists()) {
         val props = Properties().apply {

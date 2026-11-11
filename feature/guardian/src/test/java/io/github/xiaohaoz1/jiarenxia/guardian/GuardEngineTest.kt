@@ -333,7 +333,7 @@ class GuardEngineTest {
         val emergencySms = ports.sms.filter { it.kind == SmsKind.EMERGENCY }
         assertEquals(listOf(num, num2), emergencySms.map { it.number })
         assertTrue(emergencySms.all { it.body.contains("接通后若没人说话") })
-        assertTrue(emergencySms.all { it.body.startsWith("【守护侠】紧急") })
+        assertTrue(emergencySms.all { it.body.startsWith("【守护家人侠】紧急") })
     }
 
     @Test
@@ -849,7 +849,7 @@ class GuardEngineTest {
         e.handle(Event.DailySmsAlarm)
         val daily = ports.sms.filter { it.kind == SmsKind.DAILY }
         assertEquals(listOf(num, num2), daily.map { it.number })
-        assertTrue(daily.all { it.body.startsWith("【守护侠】一切正常") })
+        assertTrue(daily.all { it.body.startsWith("【守护家人侠】一切正常") })
         assertEquals(2, ports.dailySmsSchedules.size)
         assertTrue(e.snapshot().nextDailySmsAt > t0)
     }
@@ -1595,10 +1595,10 @@ class GuardEngineTest {
         clock.advance(2 * 60_000L - 2_000L)
         e.dialDrill(ports, clock)
         assertEquals(DrillPhase.CALLING, e.snapshot().drill.phase)
-        // 测试短信先群发（【守护侠·测试】），再拨号
+        // 测试短信先群发（【守护家人侠·测试】），再拨号
         val testSms = ports.sms.filter { it.kind == SmsKind.DRILL_TEST }
         assertEquals(1, testSms.size)
-        assertTrue(testSms[0].body.startsWith("【守护侠·测试】"))
+        assertTrue(testSms[0].body.startsWith("【守护家人侠·测试】"))
         assertTrue(ports.sms.none { it.kind != SmsKind.DRILL_TEST })
         assertEquals(listOf(num), ports.calls)
         runDrillCalls(e, ports, clock, CallLogResult.ANSWERED)

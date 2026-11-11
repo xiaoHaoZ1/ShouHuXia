@@ -38,7 +38,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 守护侠 Roborazzi 截图：全部使用合成数据与静态状态，不触碰 ServiceLocator、
+ * 守护家人侠 Roborazzi 截图：全部使用合成数据与静态状态，不触碰 ServiceLocator、
  * 不触发真实响铃/拨号/短信。产物在 build/outputs/roborazzi/g_*.png。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -228,7 +228,7 @@ class GuardianShotsTest {
             nextDailySmsAt = demoNow + 14 * 3600_000L,
             lastDrillResult = drillResult,
             qualifiedPass = qualifiedPass),
-        // 守护侠无家庭数据：紧急联系人只有通讯录与手动输入两条路
+        // 守护家人侠无家庭数据：紧急联系人只有通讯录与手动输入两条路
         perms = perms,
         manualItems = manualItems,
         manualConfirmed = manualConfirmed,
@@ -273,7 +273,7 @@ class GuardianShotsTest {
     }.also {
         // 新装先被运行时权限硬门槛拦住，不能看到联系人、演练和普通设置。
         assertTexts(
-            "守护侠", "首次设置", "第 1 / 4 步", "授权必要权限",
+            "守护家人侠", "首次设置", "第 1 / 4 步", "授权必要权限",
             "为什么必须授权", "开始授权必要权限", "不能跳过",
             "隐私说明",
         )
@@ -524,7 +524,7 @@ class GuardianShotsTest {
         Home(enabled = true, contact = true)
     }.also {
         assertTexts(
-            "守护侠", "守护已开启", "就短信+电话通知", "查看守护记录",
+            "守护家人侠", "守护已开启", "就短信+电话通知", "查看守护记录",
             "运行状态", "设置", "杨明", "停止守护"
         )
         assertNoTexts("从家人中选择", "家人资料里还没有其他家人")

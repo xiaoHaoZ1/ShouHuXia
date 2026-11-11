@@ -50,9 +50,9 @@ fun PrivacyScreen(onBack: () -> Unit) {
                     .padding(horizontal = 16.dp)
             ) {
                 JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    PrivacyItem("守护侠不联网、不注册账号，所有配置只保存在这台手机上。")
+                    PrivacyItem("守护家人侠不联网、不注册账号，所有配置只保存在这台手机上。")
                     PrivacyItem("开启守护后，手机长时间无人使用会先响铃，仍无人确认时会拨打你设置的紧急联系人；开启平安短信后，每天会按设定时间发出一条短信。电话与短信费用由运营商按你的套餐收取。")
-                    PrivacyItem("选择紧急联系人时，通讯录只通过系统选择器读取你选中的那一个号码，守护侠不读取全部联系人。")
+                    PrivacyItem("选择紧急联系人时，通讯录只通过系统选择器读取你选中的那一个号码，守护家人侠不读取全部联系人。")
                     PrivacyItem("守护配置不进入系统云备份和设备间迁移；换新手机后需要重新设置一遍。")
                 }
                 Spacer(Modifier.height(96.dp))

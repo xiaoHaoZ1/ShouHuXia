@@ -35,7 +35,7 @@ class GuardianNavTest {
         // 严格向导仍保留隐私说明；返回后仍停在第 1 步。
         composeRule.onNodeWithText("隐私说明").performScrollTo().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("守护侠不联网", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("守护家人侠不联网", substring = true).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("返回").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("开始授权必要权限").assertIsDisplayed()

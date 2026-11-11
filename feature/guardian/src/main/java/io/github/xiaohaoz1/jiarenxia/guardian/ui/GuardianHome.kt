@@ -228,12 +228,12 @@ enum class GuardianSetupStage {
 }
 
 /**
- * 守护侠（:guardianapp）首页可定制项：家人侠已于 C3 移除守护，
- * 差异全部经这里的参数/插槽注入，默认值即守护侠通用首页。
+ * 守护家人侠（:guardianapp）首页可定制项：家人侠已于 C3 移除守护，
+ * 差异全部经这里的参数/插槽注入，默认值即守护家人侠通用首页。
  */
 class GuardianHomeOptions(
     /** 页头标题。 */
-    val title: String = "守护侠",
+    val title: String = "守护家人侠",
     /** 设置页末尾的页尾插槽（如隐私说明入口与版本号）。 */
     val footer: (@Composable () -> Unit)? = null,
 )
@@ -280,7 +280,7 @@ class GuardianHomeCallbacks {
     var onPermItem: (Permissions.PermissionItem) -> Unit = {}
 }
 
-/** 守护侠主页（无 TopAppBar，单页直出）。stateless，便于截图。 */
+/** 守护家人侠主页（无 TopAppBar，单页直出）。stateless，便于截图。 */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun GuardianHome(
@@ -422,7 +422,7 @@ private fun ContactPickerSheet(
 }
 
 /**
- * 守护侠设置页：联系人、守护规则、系统权限与平安短信集中在这里。
+ * 守护家人侠设置页：联系人、守护规则、系统权限与平安短信集中在这里。
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -613,7 +613,7 @@ private fun SetupWizard(
             JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text("正在读取权限状态…", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "请稍候，守护侠会先确认哪些必要权限还没有开启。",
+                    "请稍候，守护家人侠会先确认哪些必要权限还没有开启。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),
@@ -626,7 +626,7 @@ private fun SetupWizard(
                 Spacer(Modifier.height(8.dp))
                 IntroStep(Icons.Rounded.NotificationsActive, "到期时响铃并在锁屏上提醒")
                 IntroStep(Icons.Rounded.Call, "无人响应时发送短信并拨打紧急联系人")
-                IntroStep(Icons.Rounded.PhoneAndroid, "判断守护侠拨出的电话是否真正接通")
+                IntroStep(Icons.Rounded.PhoneAndroid, "判断守护家人侠拨出的电话是否真正接通")
                 Text(
                     "这些权限只用于本机守护，不联网、不上传资料。拒绝后守护链路不完整，" +
                         "因此不能跳过。",
@@ -730,7 +730,7 @@ private fun SetupWizard(
     if (stage != GuardianSetupStage.READY) {
         JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Text(
-                "需要先完成当前步骤。系统权限被拒绝时，守护侠不会假装已经可以工作。",
+                "需要先完成当前步骤。系统权限被拒绝时，守护家人侠不会假装已经可以工作。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -989,7 +989,7 @@ private fun PermissionRepairSection(
     JrxCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text("修复完成后", style = MaterialTheme.typography.titleMedium)
         Text(
-            "回到守护侠会自动重新检查；全部恢复后才显示正常守护首页。" +
+            "回到守护家人侠会自动重新检查；全部恢复后才显示正常守护首页。" +
                 "守护记录仍可用于排查。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

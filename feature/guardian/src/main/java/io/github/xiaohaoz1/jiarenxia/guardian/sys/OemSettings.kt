@@ -86,7 +86,7 @@ object OemSettings {
                     "com.miui.powerkeeper",
                     "com.miui.powerkeeper.ui.HiddenAppsConfigActivity",
                 )
-            ).putExtra("package_name", pkg).putExtra("package_label", "家人侠·守护"),
+            ).putExtra("package_name", pkg).putExtra("package_label", "守护家人侠"),
             // 通用：请求加入电池优化白名单（弹窗）
             Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
                 .setData(Uri.parse("package:$pkg")),

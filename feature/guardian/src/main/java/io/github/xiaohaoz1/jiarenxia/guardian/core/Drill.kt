@@ -3,7 +3,7 @@ package io.github.xiaohaoz1.jiarenxia.guardian.core
 /**
  * 实机演练（Drill）：替换全局测试模式的"在这台手机上真实走一遍"。
  * 复用真实链路（AlarmManager → 响铃 → 全屏确认页 → 群发测试短信 → 依次拨号），
- * 演练只发"【守护侠·测试】"短信，绝不发真实报警文案。
+ * 演练只发"【守护家人侠·测试】"短信，绝不发真实报警文案。
  * 演练状态持久化在 GuardState.drill / lastDrillResult / qualifiedPass，
  * 进程被杀后可恢复判定。
  */

@@ -17,11 +17,11 @@ import io.github.xiaohaoz1.jiarenxia.guardian.ui.GuardianHomeOptions
 import io.github.xiaohaoz1.jiarenxia.ui.designsystem.JrxCard
 
 /**
- * 守护侠首页定制：标题“守护侠”，设置页末尾加隐私说明入口与版本号。
+ * 守护家人侠首页定制：标题“守护家人侠”，设置页末尾加隐私说明入口与版本号。
  * MainActivity 与截图测试共用此工厂。
  */
 fun standaloneHomeOptions(onPrivacy: () -> Unit) = GuardianHomeOptions(
-    title = "守护侠",
+    title = "守护家人侠",
     footer = { StandaloneFooter(onPrivacy = onPrivacy) }
 )
 

@@ -19,7 +19,7 @@ import io.github.xiaohaoz1.jiarenxia.guardian.sys.OemSettings
 import io.github.xiaohaoz1.jiarenxia.ui.theme.JrxTheme
 
 /**
- * 守护侠主界面：守护首页 + 设置二级页（无底部 tab），设置页可进入隐私说明。
+ * 守护家人侠主界面：守护首页 + 设置二级页（无底部 tab），设置页可进入隐私说明。
  * 固定使用家人侠品牌的暖白底，避免长辈手机跟随系统深色模式后出现近黑页面；
  * 字号仍跟随系统缩放。
  * 无家庭数据：紧急联系人只有通讯录与手动输入两条路。
@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // 守护侠固定暖色浅色主题，系统栏透明并使用深色图标。
+            // 守护家人侠固定暖色浅色主题，系统栏透明并使用深色图标。
             SideEffect {
                 enableEdgeToEdge(
                     statusBarStyle = SystemBarStyle.light(

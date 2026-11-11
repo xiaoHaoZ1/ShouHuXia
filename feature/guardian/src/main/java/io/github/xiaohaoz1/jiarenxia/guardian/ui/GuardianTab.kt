@@ -23,9 +23,9 @@ import io.github.xiaohaoz1.jiarenxia.guardian.sys.Permissions
 import io.github.xiaohaoz1.jiarenxia.guardian.sys.ServiceLocator
 
 /**
- * 守护侠首页内容：HOME / SETTINGS / PERMISSIONS / LOG 四屏手动导航，返回键回 HOME。
+ * 守护家人侠首页内容：HOME / SETTINGS / PERMISSIONS / LOG 四屏手动导航，返回键回 HOME。
  * 所有引擎操作都通过 Event / GuardStore。
- * [options] 注入标题、提示卡与页尾等定制，默认值即守护侠通用首页。
+ * [options] 注入标题、提示卡与页尾等定制，默认值即守护家人侠通用首页。
  */
 @Composable
 fun GuardianTabContent(

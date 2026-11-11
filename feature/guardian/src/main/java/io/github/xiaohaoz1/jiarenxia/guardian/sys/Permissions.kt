@@ -187,7 +187,7 @@ object Permissions {
             },
         )
 
-        // 未使用应用限制豁免（应用休眠/自动收回权限）：长辈从不打开守护侠，必须豁免。
+        // 未使用应用限制豁免（应用休眠/自动收回权限）：长辈从不打开守护家人侠，必须豁免。
         // 检测是异步的——最近一次查询结果缓存在 unusedRestrictionsCache，
         // snapshot 优先用缓存，未查过先按 UNKNOWN 占位。
         items += PermissionItem(

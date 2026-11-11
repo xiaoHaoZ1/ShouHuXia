@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 禁止系统强制深色覆盖守护侠固定暖白主题。 -->
+    <!-- 禁止系统强制深色覆盖守护家人侠固定暖白主题。 -->
     <style name="Theme.GuardianXia" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
